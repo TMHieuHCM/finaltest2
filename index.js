@@ -3,6 +3,7 @@ const { connectToDb, db } = require("./db.js");
 const jwt = require("jsonwebtoken");
 
 const app = express();
+app.use(express.json());
 
 app.listen(3000, () => {
   console.log("App is running at 3000");
@@ -50,8 +51,6 @@ app.get("/api/inventory/low", async (req, res) => {
 });
 
 // câu 4
-app.use(express.json());
-
 app.post("/api/login", async (req, res) => {
   const { username, password } = req.body;
   try {
@@ -60,11 +59,35 @@ app.post("/api/login", async (req, res) => {
       password: password,
     });
     if (user) {
-      const token = jwt.sign({ username: username }, "secret",{ expiresIn: "24h" });
+      const token = jwt.sign({ username: username }, "secret", {
+        expiresIn: "24h",
+      });
       res.json({ token: token });
     } else {
       res.status(401).json({ message: "Invalid username or password" });
     }
+  } catch (error) {
+    console.error(error);
+    res.status(500).json({ message: "Internal server error" });
+  }
+});
+// câu 6
+app.get("/api/orders", verifyToken, async (req, res) => {
+  try {
+    const orders = await db.orders.find().toArray();
+    const populatedOrders = await Promise.all(
+      orders.map(async (order) => {
+        const products = await db.products
+          .find({ _id: { $in: order.products } })
+          .toArray();
+        const orderWithProducts = {
+          ...order,
+          products: products,
+        };
+        return orderWithProducts;
+      })
+    );
+    res.json(populatedOrders);
   } catch (error) {
     console.error(error);
     res.status(500).json({ message: "Internal server error" });
